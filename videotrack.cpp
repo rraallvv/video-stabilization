@@ -71,6 +71,8 @@ int main(int argc, char** argv) {
 	trackers.add(algorithms, frame, objects);
 
 	// do the tracking
+	Mat T(2,3,CV_64F);
+
 	printf("Start the tracking process, press ESC to quit.\n");
 	for (;;){
 		// get frame from the video
@@ -85,12 +87,34 @@ int main(int argc, char** argv) {
 		trackers.update(frame);
 
 		// draw the tracked object
+		float dx = 0;
+		float dy = 0;
 		for (unsigned i=0; i<trackers.getObjects().size(); i++) {
-			rectangle(frame, trackers.getObjects()[i], Scalar(255, 0, 0), 2, 1);
+			Rect ROI = ROIs[i];
+			Rect rect = trackers.getObjects()[i];
+			dx += ROI.x - rect.x;
+			dy += ROI.y - rect.y;
+			rectangle(frame, rect, Scalar(255, 0, 0), 2, 1);
 		}
+		dx /= trackers.getObjects().size();
+		dy /= trackers.getObjects().size();
+		
+		T.at<double>(0,0) = 1;
+		T.at<double>(0,1) = 0;
+		T.at<double>(1,0) = 0;
+		T.at<double>(1,1) = 1;
+
+		T.at<double>(0,2) = dx;
+		T.at<double>(1,2) = dy;
+
+		Mat canvas = Mat::zeros(frame.rows, frame.cols, frame.type());
+		
+		warpAffine(frame, canvas, T, frame.size());
+
+		//frame.copyTo(canvas(Range::all(), Range(0, frame.cols)));
 
 		// show image with the tracked object
-		imshow("tracker", frame);
+		imshow("tracker", canvas);
 
 		//quit on ESC button
 		if (waitKey(1) == 27) {

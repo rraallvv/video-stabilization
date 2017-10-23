@@ -77,7 +77,7 @@ int main(int argc, char **argv)
     VideoCapture cap(argv[1]);
     assert(cap.isOpened());
 
-    Mat cur, cur_grey;
+    Mat frame, cur_grey;
     Mat prev, prev_grey;
 
     cap >> prev;
@@ -91,15 +91,15 @@ int main(int argc, char **argv)
     Mat last_T;
 
     while(true) {
-        cap >> cur;
+        cap >> frame;
 
-        if(cur.data == NULL) {
+        if(frame.data == NULL) {
             break;
         }
 
-        cvtColor(cur, cur_grey, COLOR_BGR2GRAY);
+        cvtColor(frame, cur_grey, COLOR_BGR2GRAY);
 
-        // vector from prev to cur
+        // vector from prev to frame
         vector <Point2f> prev_corner, cur_corner;
         vector <Point2f> prev_corner2, cur_corner2;
         vector <uchar> status;
@@ -135,7 +135,7 @@ int main(int argc, char **argv)
 
         out_transform << k << " " << dx << " " << dy << " " << da << endl;
 
-        cur.copyTo(prev);
+        frame.copyTo(prev);
         cur_grey.copyTo(prev_grey);
 
         cout << "Frame: " << k << "/" << max_frames << " - good optical flow: " << prev_corner2.size() << endl;
@@ -224,9 +224,9 @@ int main(int argc, char **argv)
 
     k=0;
     while(k < max_frames-1) { // don't process the very last frame, no valid transform
-        cap >> cur;
+        cap >> frame;
 
-        if(cur.data == NULL) {
+        if(frame.data == NULL) {
             break;
         }
 
@@ -240,17 +240,17 @@ int main(int argc, char **argv)
 
         Mat cur2;
 
-        warpAffine(cur, cur2, T, cur.size());
+        warpAffine(frame, cur2, T, frame.size());
 
         cur2 = cur2(Range(vert_border, cur2.rows-vert_border), Range(HORIZONTAL_BORDER_CROP, cur2.cols-HORIZONTAL_BORDER_CROP));
 
-        // Resize cur2 back to cur size, for better side by side comparison
-        resize(cur2, cur2, cur.size());
+        // Resize cur2 back to frame size, for better side by side comparison
+        resize(cur2, cur2, frame.size());
 
         // Now draw the original and stablised side by side for coolness
-        Mat canvas = Mat::zeros(cur.rows, cur.cols*2+10, cur.type());
+        Mat canvas = Mat::zeros(frame.rows, frame.cols*2+10, frame.type());
 
-        cur.copyTo(canvas(Range::all(), Range(0, cur2.cols)));
+        frame.copyTo(canvas(Range::all(), Range(0, cur2.cols)));
         cur2.copyTo(canvas(Range::all(), Range(cur2.cols+10, cur2.cols*2+10)));
 
         // If too big to fit on the screen, then scale it down by 2, hopefully it'll fit :)
