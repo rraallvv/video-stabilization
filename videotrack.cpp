@@ -1,101 +1,99 @@
-#include <opencv2/opencv.hpp>
+/*----------------------------------------------
+ * Usage:
+ * example_tracking_multitracker <video_name> [algorithm]
+ *
+ * example:
+ * videotrack Bolt/img/%04d.jpg
+ * videotrack faceocc2.webm KCF
+ *--------------------------------------------------*/
+
+#include <opencv2/core/utility.hpp>
 #include <opencv2/tracking.hpp>
-#include <opencv2/core/ocl.hpp>
+#include <opencv2/videoio.hpp>
+#include <opencv2/highgui.hpp>
+#include <iostream>
+#include <cstring>
+#include <ctime>
+#include "samples_utility.hpp"
 
-using namespace cv;
 using namespace std;
+using namespace cv;
 
-// Convert to string
-#define SSTR( x ) static_cast< std::ostringstream & >( \
-( std::ostringstream() << std::dec << x ) ).str()
-
-int main(int argc, char **argv) {
-	// List of tracker types in OpenCV 3.2
-	// NOTE : GOTURN implementation is buggy and does not work.
-	string trackerTypes[6] = {"BOOSTING", "MIL", "KCF", "TLD","MEDIANFLOW", "GOTURN"};
-	// vector <string> trackerTypes(types, std::end(types));
-
-	// Create a tracker
-	string trackerType = trackerTypes[2];
-
-	Ptr<Tracker> tracker;
-
-	#if (CV_MINOR_VERSION < 3)
-	{
-		tracker = Tracker::create(trackerType);
-	}
-	#else
-	{
-		if (trackerType == "BOOSTING")
-			tracker = TrackerBoosting::create();
-		if (trackerType == "MIL")
-			tracker = TrackerMIL::create();
-		if (trackerType == "KCF")
-			tracker = TrackerKCF::create();
-		if (trackerType == "TLD")
-			tracker = TrackerTLD::create();
-		if (trackerType == "MEDIANFLOW")
-			tracker = TrackerMedianFlow::create();
-		if (trackerType == "GOTURN")
-			tracker = TrackerGOTURN::create();
-	}
-	#endif
-	// Read video
-	VideoCapture video("test.mp4");
-
-	// Exit if video is not opened
-	if(!video.isOpened()) {
-		cout << "Could not read video file" << endl;
-		return 1;
+int main(int argc, char** argv) {
+	// show help
+	if (argc < 2) {
+		cout<<
+			" Usage: example_tracking_multitracker <video_name> [algorithm]\n"
+			" examples:\n"
+			" example_tracking_multitracker Bolt/img/%04d.jpg\n"
+			" example_tracking_multitracker faceocc2.webm MEDIANFLOW\n"
+			<< endl;
+		return 0;
 	}
 
-	// Read first frame
+	// set the default tracking algorithm
+	std::string trackingAlg = "KCF";
+
+	// set the tracking algorithm from parameter
+	if (argc > 2) {
+		trackingAlg = argv[2];
+	}
+
+	// create the tracker
+	MultiTracker trackers;
+
+	// container of the tracked objects
+	vector<Rect2d> objects;
+
+	// set input video
+	std::string video = argv[1];
+	VideoCapture cap(video);
+
 	Mat frame;
-	video.read(frame);
 
-	// Define initial boundibg box
-	Rect2d bbox(100, 65, 30, 30);
+	// get bounding box
+	cap >> frame;
+	vector<Rect> ROIs;
+	selectROIs("tracker", frame, ROIs);
 
-	// Uncomment the line below to select a different bounding box
-	//bbox = selectROI(frame, false);
+	//quit when the tracked object(s) is not provided
+	if (ROIs.size() < 1) {
+		return 0;
+	}
 
-	// Display bounding box.
-	rectangle(frame, bbox, Scalar( 255, 0, 0 ), 2, 1 );
-	imshow("Tracking", frame);
+	// initialize the tracker
+	std::vector<Ptr<Tracker> > algorithms;
+	for (size_t i = 0; i < ROIs.size(); i++) {
+		algorithms.push_back(createTrackerByName(trackingAlg));
+		objects.push_back(ROIs[i]);
+	}
 
-	tracker->init(frame, bbox);
+	trackers.add(algorithms, frame, objects);
 
-	while(video.read(frame)) {	 
-		// Start timer
-		double timer = (double)getTickCount();
+	// do the tracking
+	printf("Start the tracking process, press ESC to quit.\n");
+	for (;;){
+		// get frame from the video
+		cap >> frame;
 
-		// Update the tracking result
-		bool ok = tracker->update(frame, bbox);
-
-		// Calculate Frames per second (FPS)
-		float fps = getTickFrequency() / ((double)getTickCount() - timer);
-
-		if (ok) {
-			// Tracking success : Draw the tracked object
-			rectangle(frame, bbox, Scalar( 0, 255, 0 ), 2, 1 );
-		} else {
-			// Tracking failure detected.
-			rectangle(frame, bbox, Scalar( 0, 0, 255 ), 2, 1 );
-			// putText(frame, "Tracking failure detected", Point(100,80), FONT_HERSHEY_SIMPLEX, 0.75, Scalar(0,0,255),2);
+		// stop the program if no more images
+		if (frame.rows == 0 || frame.cols == 0) {
+			break;
 		}
 
-		// Display tracker type on frame
-		//putText(frame, trackerType + " Tracker", Point(100,20), FONT_HERSHEY_SIMPLEX, 0.75, Scalar(50,170,50),2);
+		//update the tracking result
+		trackers.update(frame);
 
-		// Display FPS on frame
-		//putText(frame, "FPS : " + SSTR(int(fps)), Point(100,50), FONT_HERSHEY_SIMPLEX, 0.75, Scalar(50,170,50), 2);
+		// draw the tracked object
+		for (unsigned i=0; i<trackers.getObjects().size(); i++) {
+			rectangle(frame, trackers.getObjects()[i], Scalar(255, 0, 0), 2, 1);
+		}
 
-		// Display frame.
-		imshow("Tracking", frame);
+		// show image with the tracked object
+		imshow("tracker", frame);
 
-		// Exit if ESC pressed.
-		int k = waitKey(1);
-		if(k == 27) {
+		//quit on ESC button
+		if (waitKey(1) == 27) {
 			break;
 		}
 	}
