@@ -73,19 +73,21 @@ int main(int argc, char** argv) {
 	const string name = "output.mp4";
 	Size size = Size((int) inputVideo.get(CV_CAP_PROP_FRAME_WIDTH), (int) inputVideo.get(CV_CAP_PROP_FRAME_HEIGHT));
 
-	VideoWriter outputVideo;
-	outputVideo.open(name, CV_FOURCC('m', 'p', '4', '2'), inputVideo.get(CV_CAP_PROP_FPS), size, true);
+	//VideoWriter outputVideo;
+	//outputVideo.open(name, CV_FOURCC('m', 'p', '4', '2'), inputVideo.get(CV_CAP_PROP_FPS), size, true);
 
-	if (!outputVideo.isOpened()){
-		std::cout << "!!! Output video could not be opened" << std::endl;
-		return 0;
-	}
+	//if (!outputVideo.isOpened()){
+	//	std::cout << "!!! Output video could not be opened" << std::endl;
+	//	return 0;
+	//}
 
 	// do the tracking
 	Mat T(2,3,CV_64F);
 	int k=1;
 	int max_frames = inputVideo.get(CV_CAP_PROP_FRAME_COUNT);
-
+	float dx = 0;
+	float dy = 0;
+	
 	printf("Start the tracking process, press ESC to quit.\n");
 	while(true) {
 		// get frame from the video
@@ -101,45 +103,57 @@ int main(int argc, char** argv) {
 		}
 
 		//update the tracking result
-		trackers.update(frame);
+		bool result = trackers.update(frame);
+		Mat preview = Mat::zeros(frame.rows, frame.cols, frame.type());
+        frame.copyTo(preview(Range::all(), Range::all()));
 
 		// get the average movement for the tracked objects
-		float dx = 0;
-		float dy = 0;
+		float frame_dx = 0;
+		float frame_dy = 0;
 		for (unsigned i=0; i<trackers.getObjects().size(); i++) {
 			Rect ROI = ROIs[i];
 			Rect rect = trackers.getObjects()[i];
-			dx += ROI.x - rect.x;
-			dy += ROI.y - rect.y;
-			//rectangle(frame, rect, Scalar(255, 0, 0), 2, 1);
+			frame_dx += (ROI.x + ROI.width / 2) - (rect.x + rect.width / 2);
+			frame_dy += (ROI.y + ROI.height / 2) - (rect.y + rect.height / 2);
+			if (result) {
+				rectangle(preview, rect, Scalar(255, 0, 0), 2, 1);
+			} else {
+				rectangle(preview, rect, Scalar(0, 0, 255), 2, 1);
+			}
 		}
-		dx /= trackers.getObjects().size();
-		dy /= trackers.getObjects().size();
+		frame_dx /= trackers.getObjects().size();
+		frame_dy /= trackers.getObjects().size();
 
 		T.at<double>(0,0) = 1;
 		T.at<double>(0,1) = 0;
 		T.at<double>(1,0) = 0;
 		T.at<double>(1,1) = 1;
+		
+		const float filter = 0.5f;
+		
+		dx = dx * (1 - filter) + frame_dx * filter;
+		dy = dy * (1 - filter) + frame_dy * filter;
 
 		T.at<double>(0,2) = dx;
 		T.at<double>(1,2) = dy;
 
-		Mat canvas = Mat::zeros(frame.rows, frame.cols, frame.type());
+		Mat output = Mat::zeros(frame.rows, frame.cols, frame.type());
 
-		warpAffine(frame, canvas, T, frame.size());
+		warpAffine(frame, output, T, frame.size());
+		warpAffine(preview, preview, T, frame.size());
 
-		//frame.copyTo(canvas(Range::all(), Range(0, frame.cols)));
+		//frame.copyTo(output(Range::all(), Range(0, frame.cols)));
 
 		// show image with the tracked object
-		imshow("tracker", canvas);
+		imshow("tracker", preview);
 
 		// save the video
-		outputVideo.write(canvas);
+		//outputVideo.write(output);
 
 		// save the images
 		char str[256];
 		sprintf(str, "images/%04d.png", k);
-		imwrite(str, canvas);
+		imwrite(str, output);
 
 		//quit on ESC button
 		if (waitKey(1) == 27) {
