@@ -47,12 +47,12 @@ int main(int argc, char** argv) {
 
 	// set input video
 	std::string video = argv[1];
-	VideoCapture cap(video);
+	VideoCapture inputVideo(video);
 
 	Mat frame;
 
 	// get bounding box
-	cap >> frame;
+	inputVideo >> frame;
 	vector<Rect> ROIs;
 	selectROIs("tracker", frame, ROIs);
 
@@ -70,13 +70,30 @@ int main(int argc, char** argv) {
 
 	trackers.add(algorithms, frame, objects);
 
+	const string name = "output.mp4";
+	Size size = Size((int) inputVideo.get(CV_CAP_PROP_FRAME_WIDTH), (int) inputVideo.get(CV_CAP_PROP_FRAME_HEIGHT));
+
+	VideoWriter outputVideo;
+	outputVideo.open(name, CV_FOURCC('m', 'p', '4', '2'), inputVideo.get(CV_CAP_PROP_FPS), size, true);
+
+	if (!outputVideo.isOpened()){
+		std::cout << "!!! Output video could not be opened" << std::endl;
+		return 0;
+	}
+
 	// do the tracking
 	Mat T(2,3,CV_64F);
+	int k=1;
+	int max_frames = inputVideo.get(CV_CAP_PROP_FRAME_COUNT);
 
 	printf("Start the tracking process, press ESC to quit.\n");
-	for (;;){
+	while(true) {
 		// get frame from the video
-		cap >> frame;
+		inputVideo >> frame;
+
+		if(frame.data == NULL) {
+			break;
+		}
 
 		// stop the program if no more images
 		if (frame.rows == 0 || frame.cols == 0) {
@@ -86,7 +103,7 @@ int main(int argc, char** argv) {
 		//update the tracking result
 		trackers.update(frame);
 
-		// draw the tracked object
+		// get the average movement for the tracked objects
 		float dx = 0;
 		float dy = 0;
 		for (unsigned i=0; i<trackers.getObjects().size(); i++) {
@@ -94,11 +111,11 @@ int main(int argc, char** argv) {
 			Rect rect = trackers.getObjects()[i];
 			dx += ROI.x - rect.x;
 			dy += ROI.y - rect.y;
-			rectangle(frame, rect, Scalar(255, 0, 0), 2, 1);
+			//rectangle(frame, rect, Scalar(255, 0, 0), 2, 1);
 		}
 		dx /= trackers.getObjects().size();
 		dy /= trackers.getObjects().size();
-		
+
 		T.at<double>(0,0) = 1;
 		T.at<double>(0,1) = 0;
 		T.at<double>(1,0) = 0;
@@ -108,7 +125,7 @@ int main(int argc, char** argv) {
 		T.at<double>(1,2) = dy;
 
 		Mat canvas = Mat::zeros(frame.rows, frame.cols, frame.type());
-		
+
 		warpAffine(frame, canvas, T, frame.size());
 
 		//frame.copyTo(canvas(Range::all(), Range(0, frame.cols)));
@@ -116,9 +133,19 @@ int main(int argc, char** argv) {
 		// show image with the tracked object
 		imshow("tracker", canvas);
 
+		// save the video
+		outputVideo.write(canvas);
+
+		// save the images
+		char str[256];
+		sprintf(str, "images/%04d.png", k);
+		imwrite(str, canvas);
+
 		//quit on ESC button
 		if (waitKey(1) == 27) {
 			break;
 		}
+
+		k++;
 	}
 }
