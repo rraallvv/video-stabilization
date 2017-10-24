@@ -7,10 +7,10 @@ LIBS=-lopencv_stitching -lopencv_superres -lopencv_videostab -lopencv_photo -lop
 videotrack: videotrack.cpp
 	g++ -o videotrack videotrack.cpp -I$(IDIR)/opencv -I$(IDIR) -L$(LDIR) $(LIBS)
 
-videostab: videostab.cpp
-	g++ -o videostab videostab.cpp -I$(IDIR)/opencv -I$(IDIR) -L$(LDIR) $(LIBS)
+videocrop: videocrop.cpp
+	g++ -o videocrop videocrop.cpp -I$(IDIR)/opencv -I$(IDIR) -L$(LDIR) $(LIBS)
 
-all: videotrack videostab
+all: videotrack videocrop
 
 clean:
-	$(RM) videotrack videostab
+	$(RM) videotrack videocrop
