@@ -3,8 +3,8 @@
  * example_tracking_multitracker <video_name> [algorithm]
  *
  * example:
- * videotrack Bolt/img/%04d.jpg
- * videotrack faceocc2.webm KCF
+ * videostab Bolt/img/%04d.jpg
+ * videostab faceocc2.webm KCF
  *--------------------------------------------------*/
 
 #include <opencv2/core/utility.hpp>
